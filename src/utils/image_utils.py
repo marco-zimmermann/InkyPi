@@ -7,6 +7,58 @@ import hashlib
 import tempfile
 import subprocess
 import shutil
+import signal
+import threading
+import time
+import math
+
+# Separate from Chromium's --timeout (a page-loading option).
+SCREENSHOT_TIMEOUT_SECONDS = 60
+SCREENSHOT_TERMINATE_SECONDS = 2
+_screenshot_shutdown = threading.Event()
+
+def cancel_screenshots():
+    """Cancel active screenshots and reject new ones during worker shutdown."""
+    _screenshot_shutdown.set()
+
+def reset_screenshot_shutdown():
+    """Called before starting the application's single refresh worker."""
+    _screenshot_shutdown.clear()
+
+def _signal_screenshot_group(process, sig):
+    try:
+        os.killpg(process.pid, sig)
+    except ProcessLookupError:
+        pass
+
+def _screenshot_group_exists(process):
+    try:
+        os.killpg(process.pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+
+def _cleanup_screenshot_process(process):
+    """Reap the leader and bound cleanup of descendants in its private session."""
+    _signal_screenshot_group(process, signal.SIGTERM)
+    deadline = time.monotonic() + SCREENSHOT_TERMINATE_SECONDS
+    try:
+        process.communicate(timeout=SCREENSHOT_TERMINATE_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+    while _screenshot_group_exists(process) and time.monotonic() < deadline:
+        time.sleep(0.02)
+    if _screenshot_group_exists(process):
+        _signal_screenshot_group(process, signal.SIGKILL)
+    try:
+        process.communicate(timeout=SCREENSHOT_TERMINATE_SECONDS)
+    except subprocess.TimeoutExpired:
+        # Do not hang shutdown if an escaped child still holds a pipe open.
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
+        process.wait(timeout=SCREENSHOT_TERMINATE_SECONDS)
+
 
 logger = logging.getLogger(__name__)
 
@@ -87,23 +139,17 @@ def compute_image_hash(image):
     img_bytes = image.tobytes()
     return hashlib.sha256(img_bytes).hexdigest()
 
-def take_screenshot_html(html_str, dimensions, timeout_ms=None):
-    image = None
+def take_screenshot_html(html_str, dimensions, timeout_ms=None, *, process_timeout_seconds=SCREENSHOT_TIMEOUT_SECONDS):
     try:
-        # Create a temporary HTML file
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as html_file:
-            html_file.write(html_str.encode("utf-8"))
-            html_file_path = html_file.name
-
-        image = take_screenshot(html_file_path, dimensions, timeout_ms)
-
-        # Remove html file
-        os.remove(html_file_path)
-
+        with tempfile.TemporaryDirectory(prefix="inkypi-html-") as directory:
+            path = os.path.join(directory, "page.html")
+            with open(path, "w", encoding="utf-8") as html_file:
+                html_file.write(html_str)
+            return take_screenshot(path, dimensions, timeout_ms,
+                                   process_timeout_seconds=process_timeout_seconds)
     except Exception as e:
         logger.error(f"Failed to take screenshot: {str(e)}")
-
-    return image
+        return None
 
 def _find_chromium_binary():
     """Find the first available Chromium-based binary in system PATH."""
@@ -116,60 +162,79 @@ def _find_chromium_binary():
     return None
 
 
-def take_screenshot(target, dimensions, timeout_ms=None):
-    image = None
+def take_screenshot(target, dimensions, timeout_ms=None, *, process_timeout_seconds=SCREENSHOT_TIMEOUT_SECONDS):
+    """Return an independent PIL image, or None on failure/cancellation.
+
+    POSIX process sessions isolate Chromium cleanup from the application.
+    The Python deadline includes page loading and screenshot generation.
+    """
+    process = None
     try:
-        # Find available browser binary
+        if not math.isfinite(process_timeout_seconds) or process_timeout_seconds <= 0:
+            raise ValueError("Screenshot process timeout must be positive")
+        if _screenshot_shutdown.is_set():
+            return None
         browser = _find_chromium_binary()
         if not browser:
             logger.error("No Chromium-based browser found. Install chromium, chromium-headless-shell, or chrome.")
             return None
+        with tempfile.TemporaryDirectory(prefix="inkypi-screenshot-") as directory:
+            img_file_path = os.path.join(directory, "screenshot.png")
+            command = [
+                browser,
+                target,
+                "--headless",
+                f"--screenshot={img_file_path}",
+                f"--window-size={dimensions[0]},{dimensions[1]}",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--use-gl=swiftshader",
+                "--hide-scrollbars",
+                "--in-process-gpu",
+                "--js-flags=--jitless",
+                "--disable-zero-copy",
+                "--disable-gpu-memory-buffer-compositor-resources",
+                "--disable-extensions",
+                "--disable-plugins",
+                "--mute-audio",
+                "--renderer-process-limit=1",
+                "--no-zygote",
+                "--no-sandbox"
+            ]
+            if timeout_ms:
+                command.append(f"--timeout={timeout_ms}")
 
-        # Create a temporary output file for the screenshot
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as img_file:
-            img_file_path = img_file.name
-
-        command = [
-            browser,
-            target,
-            "--headless",
-            f"--screenshot={img_file_path}",
-            f"--window-size={dimensions[0]},{dimensions[1]}",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-            "--use-gl=swiftshader",
-            "--hide-scrollbars",
-            "--in-process-gpu",
-            "--js-flags=--jitless",
-            "--disable-zero-copy",
-            "--disable-gpu-memory-buffer-compositor-resources",
-            "--disable-extensions",
-            "--disable-plugins",
-            "--mute-audio",
-            "--renderer-process-limit=1",
-            "--no-zygote",
-            "--no-sandbox"
-        ]
-        if timeout_ms:
-            command.append(f"--timeout={timeout_ms}")
-        result = subprocess.run(command, capture_output=True, check=False)
-
-        # Check if the process failed or the output file is missing
-        if result.returncode != 0 or not os.path.exists(img_file_path):
-            logger.error(f"Failed to take screenshot (return code: {result.returncode})")
-            return None
-
-        # Load the image using PIL
-        with Image.open(img_file_path) as img:
-            image = img.copy()
-
-        # Remove image files
-        os.remove(img_file_path)
-
+            try:
+                if _screenshot_shutdown.is_set():
+                    return None
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           start_new_session=True)
+                deadline = time.monotonic() + process_timeout_seconds
+                while True:
+                    if _screenshot_shutdown.is_set():
+                        raise RuntimeError("Screenshot cancelled during application shutdown")
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(command, process_timeout_seconds)
+                    try:
+                        process.communicate(timeout=min(remaining, 0.2))
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
+                if _screenshot_shutdown.is_set():
+                    raise RuntimeError("Screenshot cancelled during application shutdown")
+                if process.returncode != 0:
+                    logger.error(f"Failed to take screenshot (return code: {process.returncode})")
+                    return None
+                with Image.open(img_file_path) as img:
+                    return img.copy()
+            finally:
+                # Also remove descendants left behind after a successful leader exit.
+                if process is not None:
+                    _cleanup_screenshot_process(process)
     except Exception as e:
         logger.error(f"Failed to take screenshot: {str(e)}")
-
-    return image
+        return None
 
 def pad_image_blur(img: Image, dimensions: tuple[int, int]) -> Image:
     bkg = ImageOps.fit(img, dimensions)

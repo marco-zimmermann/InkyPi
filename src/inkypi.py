@@ -19,12 +19,14 @@ import json
 import logging
 import threading
 import argparse
+import signal
 from utils.app_utils import generate_startup_image
 from flask import Flask, request, send_from_directory
 from werkzeug.serving import is_running_from_reloader
 from config import Config
 from display.display_manager import DisplayManager
 from refresh_task import RefreshTask
+from button_listener import ButtonListener
 from blueprints.main import main_bp
 from blueprints.settings import settings_bp
 from blueprints.plugin import plugin_bp
@@ -86,17 +88,24 @@ register_heif_opener()
 
 if __name__ == '__main__':
 
-    # start the background refresh task
-    refresh_task.start()
+    button_listener = ButtonListener(refresh_task.screen_selection)
 
-    # display default inkypi image on startup
-    if device_config.get_config("startup") is True:
-        logger.info("Startup flag is set, displaying startup image")
-        img = generate_startup_image(device_config.get_resolution())
-        display_manager.display_image(img)
-        device_config.update_value("startup", False, write=True)
+    def terminate(signum, frame):
+        raise SystemExit(0)
 
+    # systemd SIGTERM must enter finally, not abandon requested GPIO lines.
+    signal.signal(signal.SIGTERM, terminate)
     try:
+        # Preserve the existing refresh worker and splash behavior. Start input
+        # only after the splash so it cannot race with that direct startup draw.
+        refresh_task.start()
+        if device_config.get_config("startup") is True:
+            logger.info("Startup flag is set, displaying startup image")
+            img = generate_startup_image(device_config.get_resolution())
+            display_manager.display_image(img)
+            device_config.update_value("startup", False, write=True)
+        button_listener.start()
+
         # Run the Flask app
         app.secret_key = str(random.randint(100000,999999))
 
@@ -114,4 +123,5 @@ if __name__ == '__main__':
 
         serve(app, host="0.0.0.0", port=PORT, threads=1)
     finally:
+        button_listener.stop()
         refresh_task.stop()
