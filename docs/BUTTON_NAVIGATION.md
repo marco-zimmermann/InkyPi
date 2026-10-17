@@ -37,7 +37,8 @@ pauses button scheduling rather than falling back to ordinary playlists.
 `RefreshTask.screen_selection.assign_button(button, reference)` validates and
 persists assignments. Passing `None` removes an assignment. Use this API outside
 GPIO callbacks. External JSON changes require an application restart. Assignment
-UI controls and additional aviation plugins are future work.
+UI controls remain future work. The [Aviation METAR plugin](METAR_PLUGIN.md)
+provides the verified Button B screen.
 
 ## Selection, rendering, and persistence
 
@@ -166,7 +167,8 @@ does not reduce normal Chromium memory peaks.
 
 ## Verified results
 
-The complete local suite passes **137 tests** using mocks for hardware/rendering.
+The navigation/Chromium foundation contains **137 tests** using mocks for
+hardware/rendering; the complete suite including METAR now passes **240 tests**.
 Run in a development environment with the test dependencies available:
 
 ```sh
@@ -183,9 +185,11 @@ and shutdown without a display call.
 PiFrame validation used Python 3.13.5, Inky 2.4.0, and gpiod 2.5.0 (bundled
 libgpiod 2.3), with the E673 variant 22 display at 800 × 480. Individual and combined
 input-only tests verified all four buttons, stable releases, and no duplicate or
-missed deliberate presses. End-to-end testing assigned only A to Weather: a comic
+missed deliberate presses. Initial end-to-end testing assigned A to Weather: a comic
 web update displaced Weather; A restored it once; repeated A caused no refresh.
 Manual-only scheduling/retries stayed suppressed. The user confirmed visible output.
+The subsequent A → B → A METAR regression and reboot persistence are recorded in
+[the METAR baseline](METAR_PLUGIN.md#verified-baseline-2026-10-17).
 
 A real 160 × 100 static Chromium screenshot passed on Python 3.13.5, as did
 controlled subprocess timeout/cancellation tests. The approved Weather measurement
@@ -203,11 +207,15 @@ Build checksummed source snapshots into new release directories, preserving the
 running release. Copy configuration, saved instances, assets, and runtime images
 into independent paths; compare live state before activation and stop if it changed.
 Carry selected/displaced state forward without queuing input. Keep manual-only true,
-startup false, B/C/D unassigned, and playlists paused for controlled integration tests.
+startup false, the intended validated assignments, and playlists paused for controlled
+integration tests. The current A/B baseline assigns A to Weather and B to LSZL
+METAR, with C/D unassigned.
 
-Use the existing virtual environment and a temporary systemd drop-in overriding
-only ExecStart/WorkingDirectory. Point launcher environment and writable paths into
-the new release. Verify the unit, limits, privileged process cwd, and isolated
+Use the existing virtual environment and a systemd drop-in overriding only
+ExecStart/WorkingDirectory. A persistent drop-in under
+`/etc/systemd/system/inkypi.service.d/` retains the release paths across reboot;
+`/run/systemd/system/` is suitable only for temporary activation. Point launcher
+environment and writable paths into the new release. Verify the unit, limits, privileged process cwd, and isolated
 configuration. Stop the old service and confirm complete process/GPIO release
 before starting another. On failure, stop the candidate and restore the previous
 drop-in and release without copying new state into the rollback configuration.

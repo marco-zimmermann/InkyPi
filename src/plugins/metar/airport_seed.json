@@ -1,0 +1,29 @@
+{
+  "LSZL": {
+    "icao": "LSZL",
+    "source": "https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/",
+    "as_of": "2026-10-17",
+    "fetched_at": 1792260801.765314,
+    "airport": {
+      "name": "Locarno Airport",
+      "elevation_ft": 650,
+      "runways": [
+        {
+          "ident": "08C / 26C",
+          "length_m": 700,
+          "surface": "GRASS"
+        },
+        {
+          "ident": "08L / 26R",
+          "length_m": 800,
+          "surface": "ASPH"
+        },
+        {
+          "ident": "08R / 26L",
+          "length_m": 700,
+          "surface": "GRASS"
+        }
+      ]
+    }
+  }
+}

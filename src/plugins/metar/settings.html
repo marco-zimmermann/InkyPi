@@ -1,0 +1,13 @@
+<div class="form-group">
+    <label for="icao" class="form-label">Airport ICAO:</label>
+    <input id="icao" name="icao" class="form-input" type="text" pattern="[A-Za-z]{4}"
+           maxlength="4" value="LSZL" required style="text-transform:uppercase">
+    <small>Raw observation data: AviationWeather.gov. Runways: OurAirports community data.</small>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof pluginSettings !== 'undefined') {
+        document.getElementById('icao').value = pluginSettings.icao || 'LSZL';
+    }
+});
+</script>

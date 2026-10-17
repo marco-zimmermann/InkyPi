@@ -1,0 +1,16 @@
+{
+  "provenance": "Synthetic METARs constructed solely for parser/layout tests. Not historical or live observations.",
+  "now": "2026-10-17T12:15:00+00:00",
+  "vfr": {
+    "icaoId": "LSZL",
+    "obsTime": 1792238400,
+    "rawOb": "METAR LSZL 171200Z AUTO 19004KT CAVOK 19/10 Q1020 NOSIG",
+    "name": "Locarno Airport"
+  },
+  "ifr": {
+    "icaoId": "LSZL",
+    "obsTime": 1792238400,
+    "rawOb": "METAR LSZL 171200Z 24012G22KT 180V280 1800 -SHRA BKN007 OVC015 07/06 Q0995 NOSIG",
+    "name": "Locarno Airport"
+  }
+}
