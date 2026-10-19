@@ -15,4 +15,12 @@ class Metar(BasePlugin):
         with make_session() as session:
             report=load_metar(session,cache,icao,now)
             airport=load_airport(session,cache,icao,now)
-        return render_dashboard(icao,report,airport,now)
+        image = render_dashboard(icao,report,airport,now)
+        # Presentation success and live retrieval are distinct. These private
+        # Pillow annotations do not change pixels, cache behavior, or requests.
+        image.info['inkypi_live_data_success'] = report.get('report') is not None and not report.get('cached')
+        image.info['inkypi_data_status'] = (
+            'unavailable' if report.get('report') is None else
+            'cached_stale' if report.get('cached') and report.get('stale') else
+            'cached' if report.get('cached') else 'stale' if report.get('stale') else 'live')
+        return image

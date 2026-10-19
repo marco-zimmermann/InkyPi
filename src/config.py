@@ -86,6 +86,13 @@ class Config:
                 outfile.flush()
                 os.fsync(outfile.fileno())
             os.replace(temporary, self.config_file)
+            # fsync the directory as well as the payload: the rename containing
+            # the pre-display uncertainty marker must survive a crash.
+            directory = os.open(os.path.dirname(self.config_file), os.O_RDONLY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
         finally:
             if temporary and os.path.exists(temporary):
                 os.unlink(temporary)
@@ -161,6 +168,35 @@ class Config:
                 self.config[key] = old
             else:
                 self.config.pop(key, None)
+            raise
+
+    @serialized_config
+    def commit_refresh(self, refresh_info, instance=None, refreshed_at=None,
+                       navigation_edit=None):
+        """Commit presentation metadata/models/navigation in one file replacement.
+
+        Rendering and hardware IO have already finished. Roll back the in-memory
+        models and cached sections together if persistence fails; the worker
+        retains/reasserts the durable uncertainty marker after physical IO.
+        """
+        previous_config = deepcopy(self.config)
+        previous_refresh = self.refresh_info
+        previous_time = instance.latest_refresh_time if instance is not None else None
+        try:
+            self.refresh_info = refresh_info
+            if instance is not None:
+                instance.latest_refresh_time = refreshed_at
+            if navigation_edit is not None:
+                value = self.config.get("button_navigation", {})
+                value = deepcopy(value) if isinstance(value, dict) else {}
+                navigation_edit(value)
+                self.config["button_navigation"] = value
+            self.write_config()
+        except Exception:
+            self.config = previous_config
+            self.refresh_info = previous_refresh
+            if instance is not None:
+                instance.latest_refresh_time = previous_time
             raise
 
     def load_env_key(self, key):

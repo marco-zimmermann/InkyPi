@@ -136,7 +136,20 @@ class Weather(BasePlugin):
             last_refresh_time = now.strftime("%Y-%m-%d %I:%M %p")
         template_params["last_refresh_time"] = last_refresh_time
 
-        image = self.render_image(dimensions, "weather.html", "weather.css", template_params)
+        # Saved instances need no migration: Pillow is the 800x480 default.
+        # Unsupported dimensions require deliberate Chromium selection as well.
+        renderer = settings.get("renderer") or "pillow"
+        if renderer == "pillow":
+            from plugins.weather.dashboard import from_parsed
+            from plugins.weather.pillow_rendering import render_dashboard
+            logger.info("Weather renderer: Pillow | dimensions=%s", dimensions)
+            image = render_dashboard(from_parsed(template_params, rendered_at=now),
+                                     settings, dimensions)
+        elif renderer == "chromium":
+            logger.info("Weather renderer: Chromium (explicit fallback) | dimensions=%s", dimensions)
+            image = self.render_image(dimensions, "weather.html", "weather.css", template_params)
+        else:
+            raise ValueError("Unknown Weather renderer; choose pillow or chromium")
 
         if not image:
             raise RuntimeError("Failed to take screenshot, please check logs.")

@@ -27,6 +27,19 @@ And additional plugins coming soon! For documentation on building custom plugins
 
 See [the wiki](https://github.com/fatihak/InkyPi/wiki) for a list of community-maintained third-party plugins.
 
+## PiFrame branch
+
+This branch adds remembered Weather/METAR locations on Buttons A/B, contextual
+location cycling on C, and optional 15-minute refresh of only the selected screen.
+Weather uses Pillow at 800 × 480; Chromium remains an explicit fallback. Persistent
+resource protection and display-uncertainty handling guard unattended refresh.
+New installations remain opt-in; the verified PiFrame has both groups enabled.
+
+See [PiFrame deployment history](docs/PIFRAME_SETUP.md),
+[button navigation and scheduling](docs/BUTTON_NAVIGATION.md),
+[Weather rendering](docs/WEATHER_RENDERING.md), and
+[offline Weather testing](docs/WEATHER_TESTING.md).
+
 ## Hardware 
 - Raspberry Pi (4 | 3 | Zero 2 W)
     - Recommended to get 40 pin Pre Soldered Header

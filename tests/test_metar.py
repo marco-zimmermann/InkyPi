@@ -286,6 +286,27 @@ def test_plugin_discovery_and_worker_entrypoint(tmp_path,monkeypatch):
     assert not list(tmp_path.iterdir())
 
 
+@pytest.mark.parametrize('cached,stale,available,status,live', [
+    (False,False,True,'live',True), (False,True,True,'stale',True),
+    (True,False,True,'cached',False), (True,True,True,'cached_stale',False),
+    (False,True,False,'unavailable',False)])
+def test_plugin_reports_retrieval_quality_without_changing_pixels(
+        tmp_path,monkeypatch,cached,stale,available,status,live):
+    from plugins.metar import metar as module
+    from PIL import Image
+    from contextlib import nullcontext
+    state={'report':FIXTURES['vfr'] if available else None,'cached':cached,'stale':stale}
+    monkeypatch.setattr(module,'make_session',lambda: nullcontext(Mock()))
+    monkeypatch.setattr(module,'load_metar',lambda *args:state)
+    monkeypatch.setattr(module,'load_airport',lambda *args:{})
+    expected=Image.new('RGB',(8,8),'white')
+    monkeypatch.setattr(module,'render_dashboard',lambda *args:expected)
+    image=module.Metar({'id':'metar'}).generate_image({'icao':'LSZL'},Mock(plugin_image_dir=str(tmp_path)))
+    assert image is expected and image.tobytes()==Image.new('RGB',(8,8),'white').tobytes()
+    assert image.info['inkypi_live_data_success'] is live
+    assert image.info['inkypi_data_status']==status
+
+
 def test_unknown_extra_ceiling_does_not_allow_optimistic_category():
     assert decode(report('9999 BKN007 OVC///'))['category']=='UNKNOWN'
     assert decode(report('9999 BKN002 OVC///'))['category']=='LIFR'

@@ -1,10 +1,39 @@
-# PiFrame working baseline
+# PiFrame deployment history
 
 Phase 1 completed on 2026-10-10 (Europe/Zurich). Stock InkyPi and standard
 plugins were tested successfully, including a physically confirmed display
 refresh. Automatic service startup and memory-limit enforcement were verified
-after reboot. This document records the working deployment; commands below are
+after reboot. This document retains the historical Phase 1 deployment; commands below are
 operational instructions, not actions executed by reading this document.
+
+## Phase 2 status — 2026-10-19
+
+The running isolated release is `weather-pillow-2727ac82f1a9`, using the persistent
+service drop-in under `/etc/systemd/system/inkypi.service.d/`. The original checkout
+and previous release remain available for rollback. The Phase 1 source/launcher
+paths below describe the original installation, not the current active release.
+
+- A restores the remembered Weather instance; B restores the remembered METAR
+  airport; C cycles the active group; D is unassigned.
+- Weather rotation: Contra (`Weather`) → Little Salmon (`Salmon`). Lugano remains
+  saved outside the rotation. METAR rotation: LSZL → LSZA.
+- Weather defaults to Pillow at 800 × 480; explicit Chromium fallback remains.
+- Automatic active-screen refresh is enabled for both groups at 900 seconds;
+  `manual_only=false`, `startup=false`. It never rotates playlists or locations.
+- The diagnosed historical `memory_critical` pause was deliberately recovered
+  after backup and approval. Resource protection remains enabled; new pauses
+  require diagnosis and must never be cleared automatically.
+- At the last check, Little Salmon was selected, remembered METAR was LSZA, and
+  displacement/display uncertainty were false. Selection is mutable runtime state,
+  not a setting to copy blindly into a new release.
+- The first automatic Pillow Weather cycle took 6.4 s generation / 35.6 s total,
+  peaked at 102.4 MiB kernel cgroup memory, and used no swap or limit/OOM events.
+  Limits remain MemoryMax=200 MiB and CPUQuota=40%. This is a first-cycle result,
+  not a long-running reliability guarantee.
+
+Full scheduler and recovery semantics are in [BUTTON_NAVIGATION.md](BUTTON_NAVIGATION.md).
+[Pillow Weather details](WEATHER_RENDERING.md) include benchmark limits and physical
+validation. Existing saved settings, caches and provider calculations were preserved.
 
 ## Hardware and software
 

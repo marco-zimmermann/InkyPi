@@ -2,6 +2,15 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
 <div class="form-group">
+    <label for="renderer" class="form-label">Renderer:</label>
+    <select id="renderer" name="renderer" class="form-input">
+        <option value="pillow">Pillow (800 × 480 landscape)</option>
+        <option value="chromium">Chromium</option>
+    </select>
+    <span>Pillow errors do not switch renderers automatically.</span>
+</div>
+
+<div class="form-group">
     <label class="form-label">Location: </label>
     <div class="form-group">
         <span>Latitude </span>
@@ -293,6 +302,8 @@
             }
             closeModal('mapModal');
         });
+
+        document.getElementById('renderer').value = (loadPluginSettings && pluginSettings.renderer) || 'pillow';
 
         if (loadPluginSettings) {
             document.getElementById('latitude').value = pluginSettings.latitude ?? '';

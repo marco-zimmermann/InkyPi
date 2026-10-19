@@ -11,6 +11,7 @@ import signal
 import threading
 import time
 import math
+from resource_guard import resource_checkpoint, report_resource_failure
 
 # Separate from Chromium's --timeout (a page-loading option).
 SCREENSHOT_TIMEOUT_SECONDS = 60
@@ -49,6 +50,7 @@ def _cleanup_screenshot_process(process):
     while _screenshot_group_exists(process) and time.monotonic() < deadline:
         time.sleep(0.02)
     if _screenshot_group_exists(process):
+        report_resource_failure("chromium_cleanup_failure")
         _signal_screenshot_group(process, signal.SIGKILL)
     try:
         process.communicate(timeout=SCREENSHOT_TERMINATE_SECONDS)
@@ -177,6 +179,7 @@ def take_screenshot(target, dimensions, timeout_ms=None, *, process_timeout_seco
         browser = _find_chromium_binary()
         if not browser:
             logger.error("No Chromium-based browser found. Install chromium, chromium-headless-shell, or chrome.")
+            report_resource_failure("chromium_unavailable")
             return None
         with tempfile.TemporaryDirectory(prefix="inkypi-screenshot-") as directory:
             img_file_path = os.path.join(directory, "screenshot.png")
@@ -207,14 +210,20 @@ def take_screenshot(target, dimensions, timeout_ms=None, *, process_timeout_seco
             try:
                 if _screenshot_shutdown.is_set():
                     return None
-                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                           start_new_session=True)
+                try:
+                    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                               start_new_session=True)
+                except OSError:
+                    report_resource_failure("chromium_launch_failure")
+                    raise
                 deadline = time.monotonic() + process_timeout_seconds
                 while True:
                     if _screenshot_shutdown.is_set():
                         raise RuntimeError("Screenshot cancelled during application shutdown")
+                    resource_checkpoint()
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
+                        report_resource_failure("chromium_timeout")
                         raise subprocess.TimeoutExpired(command, process_timeout_seconds)
                     try:
                         process.communicate(timeout=min(remaining, 0.2))
@@ -225,14 +234,25 @@ def take_screenshot(target, dimensions, timeout_ms=None, *, process_timeout_seco
                     raise RuntimeError("Screenshot cancelled during application shutdown")
                 if process.returncode != 0:
                     logger.error(f"Failed to take screenshot (return code: {process.returncode})")
+                    report_resource_failure("chromium_exit", returncode=process.returncode)
                     return None
-                with Image.open(img_file_path) as img:
-                    return img.copy()
+                try:
+                    with Image.open(img_file_path) as img:
+                        return img.copy()
+                except (OSError, ValueError):
+                    report_resource_failure("chromium_output_failure")
+                    raise
             finally:
                 # Also remove descendants left behind after a successful leader exit.
                 if process is not None:
-                    _cleanup_screenshot_process(process)
+                    try:
+                        _cleanup_screenshot_process(process)
+                    except Exception:
+                        report_resource_failure("chromium_cleanup_failure")
+                        raise
     except Exception as e:
+        if isinstance(e, MemoryError):
+            report_resource_failure("memory_allocation")
         logger.error(f"Failed to take screenshot: {str(e)}")
         return None
 

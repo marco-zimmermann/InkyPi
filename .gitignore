@@ -172,3 +172,24 @@ mock_display_output/
 # Static Files added by install/update_vendors.sh
 /src/static/scripts/
 /src/static/styles/
+
+# Local development environments and generated validation output
+.venv*/
+venv-*/
+.env.*
+!.env.example
+!.env.sample
+.ruff_cache/
+/test-results/
+/benchmark_output/
+/benchmark_results/
+/scratch/
+/tmp/
+
+# Device runtime data (keep shipped assets and regression fixtures tracked)
+/src/config/device.json
+/src/static/images/current_image.png
+/src/static/images/plugins/*
+!/src/static/images/plugins/.gitignore
+/src/static/images/saved/*
+!/src/static/images/saved/.gitignore

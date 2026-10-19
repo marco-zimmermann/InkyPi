@@ -68,7 +68,9 @@ def test_failed_web_update_does_not_displace(config, displacement_worker, failur
     with pytest.raises(RuntimeError):
         task.manual_update(ManualRefresh('test', {'name': 'comic'}))
     assert not task.screen_selection.displaced
-    assert not task.request_button('A')
+    assert task.screen_selection.display_uncertain is (failure == 'display')
+    task.stop()
+    assert task.request_button('A') is (failure == 'display')
     assert config.refresh_info.plugin_instance == 'A'
 
 
@@ -262,12 +264,32 @@ def config(tmp_path, monkeypatch):
     return cfg
 
 
+def consume_presented(controller):
+    result = controller.consume_pending()
+    if result and result[2]:
+        playlist, instance = result[:2]
+        controller.record_display_success(
+            dict(playlist=playlist.name, plugin_id=instance.plugin_id, instance=instance.name),
+            web=False, image_changed=True, selection=True)
+    controller.end_refresh()
+    return result
+
+
+def present_action(task, action):
+    instance = action.plugin_instance
+    task.screen_selection.record_display_success(
+        dict(playlist=action.playlist.name, plugin_id=instance.plugin_id, instance=instance.name),
+        web=False, image_changed=True, selection=getattr(action, 'button_selection', False))
+    task.screen_selection.end_refresh()
+    return action
+
+
 def test_persistence_and_unrelated_values(config):
     wake = Mock()
     controller = ScreenSelectionController(config, wake)
     assert controller.request_button('A')
     assert 'selected' not in config.get_config('button_navigation')
-    assert controller.consume_pending()[1].name == 'A'
+    assert consume_presented(controller)[1].name == 'A'
     assert Config().get_config('button_navigation')['selected'] == ref('A')
     assert config.get_config('unrelated') == {'keep': True}
     assert not controller.request_button('A')
@@ -278,22 +300,22 @@ def test_latest_pending_wins(config):
     controller = ScreenSelectionController(config, Mock())
     for button in 'ABCD':
         assert controller.request_button(button)
-    assert controller.consume_pending()[1].name == 'D'
-    assert controller.consume_pending() is None
+    assert consume_presented(controller)[1].name == 'D'
+    assert consume_presented(controller) is None
 
 
 @pytest.mark.parametrize('reference', [None, {}, ref('missing'), 'A'])
 def test_invalid_selection(config, reference):
     controller = ScreenSelectionController(config, Mock())
     assert not controller.request_selection(reference)
-    assert controller.consume_pending() is None
+    assert consume_presented(controller) is None
 
 
 def test_deleted_pending_and_selected(config):
     controller = ScreenSelectionController(config, Mock())
     controller.request_button('A')
     config.get_playlist_manager().get_playlist('Default').plugins.clear()
-    assert controller.consume_pending() is None
+    assert consume_presented(controller) is None
     config.get_config('button_navigation')['selected'] = ref('A')
     assert controller.selected() is None
 
@@ -302,7 +324,7 @@ def test_assignment(config):
     controller = ScreenSelectionController(config, Mock())
     controller.assign_button('A', ref('B'))
     assert controller.request_button('A')
-    assert controller.consume_pending()[1].name == 'B'
+    assert consume_presented(controller)[1].name == 'B'
     controller.assign_button('A', None)
     assert not controller.request_button('A')
     with pytest.raises(ValueError):
@@ -321,24 +343,27 @@ def test_disabled_preserves_playlist(config, mode):
     assert 'selected' not in config.get_config('button_navigation')
 
 
-def test_selected_schedule_does_not_cycle(config):
+def test_unsupported_selected_plugin_does_not_enable_automatic_scheduling(config):
     task = RefreshTask(config, Mock())
     task.request_button('B')
     action = task._scheduled_action(datetime.now(timezone.utc))
     assert action.plugin_instance.name == 'B' and action.force
     now = datetime.now(timezone.utc)
     action.plugin_instance.latest_refresh_time = now.isoformat()
+    present_action(task, action)
     assert task._scheduled_action(now) is None
-    assert task._scheduled_action(now + timedelta(seconds=3600)).plugin_instance.name == 'B'
+    assert task._scheduled_action(now + timedelta(seconds=3600)) is None
     assert config.get_playlist_manager().get_playlist('Default').current_plugin_index is None
 
 
-def test_daily_schedule(config):
+def test_legacy_daily_schedule_does_not_bypass_group_scheduler(config):
     instance = config.get_playlist_manager().get_playlist('Default').plugins[0]
     instance.refresh = {'scheduled': '12:00'}
     instance.latest_refresh_time = '2026-10-10T09:00:00+00:00'
-    assert not RefreshTask._selection_due(instance, datetime(2026, 10, 10, 11, tzinfo=timezone.utc))
-    assert RefreshTask._selection_due(instance, datetime(2026, 10, 10, 12, tzinfo=timezone.utc))
+    task = RefreshTask(config, Mock())
+    task.request_button('A')
+    present_action(task, task._scheduled_action(datetime.now(timezone.utc)))
+    assert task._scheduled_action(datetime(2026, 10, 10, 12, tzinfo=timezone.utc)) is None
 
 
 @pytest.mark.parametrize('manual_only', [False, True])
@@ -394,9 +419,9 @@ def test_manual_only_defaults_to_false(config, value):
     task = RefreshTask(config, Mock())
     assert not task.screen_selection.manual_only
     assert task.request_button('A')
-    task._scheduled_action(datetime.now(timezone.utc))
-    # Ordinary selected-instance scheduling still applies when unset/malformed.
-    assert task._scheduled_action(datetime.now(timezone.utc)) is not None
+    present_action(task, task._scheduled_action(datetime.now(timezone.utc)))
+    # The pause is off, but this generic plugin has no supported location group.
+    assert task._scheduled_action(datetime.now(timezone.utc)) is None
 
 
 @pytest.mark.parametrize('failure', [None, 'generation', 'display'])
@@ -433,14 +458,16 @@ def test_manual_only_worker_attempts_once_even_on_failure(config, monkeypatch, f
     try:
         assert task.request_button('A')
         assert completed.wait(3)
-        assert not task.request_button('A')
+        wait_until(lambda: task.screen_selection._active is None)
         task.signal_config_change()
         assert checked.wait(3)
     finally:
         task.stop()
     assert plugin.generate_image.call_count == 1
     assert display.display_image.call_count == (0 if failure == 'generation' else 1)
-    assert Config().get_config('button_navigation')['selected'] == ref('A')
+    saved = Config().get_config('button_navigation')
+    assert saved.get('selected') == (ref('A') if failure is None else None)
+    assert task.request_button('A') is (failure is not None)
     assert not task.thread.is_alive()
 
 
@@ -450,7 +477,7 @@ def test_manual_only_switch_persistence_and_restart(config):
     now = datetime.now(timezone.utc)
     assert task._scheduled_action(now) is None  # No playlist fallback.
     assert task.request_button('A')
-    assert task._scheduled_action(now).plugin_instance.name == 'A'
+    assert present_action(task, task._scheduled_action(now)).plugin_instance.name == 'A'
     assert not task.request_button('A')
     assert task._scheduled_action(now + timedelta(days=2)) is None
     restarted = RefreshTask(Config(), Mock())
@@ -458,7 +485,7 @@ def test_manual_only_switch_persistence_and_restart(config):
     assert restarted._scheduled_action(now + timedelta(days=2)) is None
     assert not restarted.request_button('A')
     assert restarted.request_button('B')
-    assert restarted._scheduled_action(now).plugin_instance.name == 'B'
+    assert present_action(restarted, restarted._scheduled_action(now)).plugin_instance.name == 'B'
     assert restarted._scheduled_action(now + timedelta(days=2)) is None
     assert Config().get_config('button_navigation')['selected'] == ref('B')
 
@@ -476,6 +503,7 @@ def test_manual_only_toggle_does_not_enqueue_or_force_refresh(config):
     assert task.request_button('A')
     action = task._scheduled_action(now)
     action.plugin_instance.latest_refresh_time = now.isoformat()
+    present_action(task, action)
     for enabled in (True, False, True):
         config.update_section('button_navigation', lambda settings: settings.update(manual_only=enabled))
         task.signal_config_change()
@@ -483,8 +511,8 @@ def test_manual_only_toggle_does_not_enqueue_or_force_refresh(config):
         assert task._scheduled_action(now) is None
         assert config.get_config('button_navigation')['selected'] == ref('A')
     config.get_config('button_navigation')['manual_only'] = False
-    # Removing the pause restores naturally due updates, without forcing one.
-    assert task._scheduled_action(now + timedelta(hours=1)).plugin_instance.name == 'A'
+    # Removing the pause does not invent a supported group for this generic plugin.
+    assert task._scheduled_action(now + timedelta(hours=1)) is None
 
 
 def test_disable_discards_pending(config):
@@ -518,7 +546,7 @@ def test_default_mode_is_disabled(config):
 def test_return_to_previous_selection_during_commit(config, monkeypatch):
     controller = ScreenSelectionController(config, Mock())
     controller.request_button('A')
-    controller.consume_pending()
+    consume_presented(controller)
     original = config.update_section
     def committing(key, edit):
         # B has left the mailbox but A is still the persisted selection.
@@ -526,9 +554,9 @@ def test_return_to_previous_selection_during_commit(config, monkeypatch):
         original(key, edit)
     controller.request_button('B')
     monkeypatch.setattr(config, 'update_section', committing)
-    assert controller.consume_pending()[1].name == 'B'
+    assert consume_presented(controller)[1].name == 'B'
     monkeypatch.setattr(config, 'update_section', original)
-    assert controller.consume_pending()[1].name == 'A'
+    assert consume_presented(controller)[1].name == 'A'
 
 
 def test_atomic_write_failure_preserves_file_and_selection(config, monkeypatch):
@@ -542,7 +570,7 @@ def test_atomic_write_failure_preserves_file_and_selection(config, monkeypatch):
         raise OSError('disk failure')
     monkeypatch.setattr(os, 'replace', fail)
     with pytest.raises(OSError):
-        controller.consume_pending()
+        consume_presented(controller)
     assert path.read_bytes() == before
     assert 'selected' not in config.get_config('button_navigation')
     assert not list(path.parent.glob('.device-*'))
@@ -554,11 +582,12 @@ def test_restart_restores_without_forced_refresh(config):
     now = datetime.now(timezone.utc)
     action = task._scheduled_action(now)
     action.plugin_instance.latest_refresh_time = now.isoformat()
+    present_action(task, action)
     config.write_config()
     restarted = RefreshTask(Config(), Mock())
     assert restarted.screen_selection.selected()[1].name == 'B'
     assert restarted._scheduled_action(now) is None
-    assert restarted._scheduled_action(now + timedelta(seconds=3600)).plugin_instance.name == 'B'
+    assert restarted._scheduled_action(now + timedelta(seconds=3600)) is None
 
 
 def test_concurrent_assignments_preserve_all_updates(config):
@@ -608,7 +637,10 @@ def test_invalid_schedule_is_safe(config, schedule):
     instance = config.get_playlist_manager().get_playlist('Default').plugins[0]
     instance.latest_refresh_time = datetime.now(timezone.utc).isoformat()
     instance.refresh = schedule
-    assert not RefreshTask._selection_due(instance, datetime.now(timezone.utc))
+    task = RefreshTask(config, Mock())
+    task.request_button('A')
+    present_action(task, task._scheduled_action(datetime.now(timezone.utc)))
+    assert task._scheduled_action(datetime.now(timezone.utc) + timedelta(days=1)) is None
 
 
 def test_parallel_start_creates_one_worker(config):
