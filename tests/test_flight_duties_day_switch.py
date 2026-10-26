@@ -66,7 +66,7 @@ def test_featured_time_aircraft_hierarchy_reminders_and_overflow(labels):
     assert any(v=='11:00' and size==42 for _,v,size in labels)
     assert any(v.startswith('NEXT DUTY') for _,v,_ in labels)
     assert any(v.startswith('HB-') and size==29 for _,v,size in labels)
-    assert any('5 shown' in v and '2 more' in v for _,v,_ in labels)
+    assert any(v=='5 of 7 bookings shown' for _,v,_ in labels)
     assert next(xy[1] for xy,v,_ in labels if v=='REMINDERS')>=423
     assert not any('not separately supplied' in v for _,v,_ in labels)
 
@@ -87,5 +87,6 @@ def test_design_limits_long_text_and_determinism(limit):
 
 def test_legacy_six_rows_retain_status_and_participant_lines(labels):
     with render_dashboard(report(),NOW,{'max_bookings':7}):pass
-    assert len([v for xy,v,size in labels if xy[1]>=217 and v in ('Status unknown','Tentative','Confirmed')])==5
+    assert len([v for xy,v,size in labels if xy[1]>=217 and v in ('Tentative','Confirmed')])==2
+    assert not any(v=='Status unknown' for _,v,_ in labels)
     assert len([v for xy,v,size in labels if 217<=xy[1]<415 and size==13 and v])>=3

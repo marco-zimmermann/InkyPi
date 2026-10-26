@@ -68,13 +68,33 @@ No real credential belongs in the saved instance or button configuration.
   reveal hidden bookings; missing participant fields do not add filler text.
   Overnight bookings overlapping the selected day use `<` (previous day) and `+`
   (following day) markers relative to that displayed date.
+- The compact date reads e.g. TUE 27 OCT 2026. Blue accents identify the selected
+  planning day, featured card and reminders. Tomorrow's feature says FIRST DUTY
+  TOMORROW; today's upcoming feature says NEXT DUTY. Counts read “5 of 7 bookings
+  shown”, and the footer gives last-sync/stale information without status clutter.
+- Text is primarily black on white. RGB output is snapped without dithering to the
+  installed E673 driver's nominal six colors: black, white, yellow, red, blue and
+  green. Blue is restrained; green only marks explicit confirmation; red is reserved
+  for stale/unavailable information or actual errors. No driver/global enhancement
+  settings change. Tests cover the current neutral enhancements and driver palette
+  blend at inky_saturation=0.5; custom enhancement settings can alter conversion.
 - LOCATION supplies the aircraft/resource; an explicit Aircraft/Registration label
-  in DESCRIPTION is a fallback. The original summary is the activity, rather than
-  guessed lesson codes. Explicit Student/Instructor/Customer/Pilot/Participant text
+  in DESCRIPTION is a fallback. The original summary remains intact in the parsed
+  data and private cache.
+  Featured and list activity titles hide only leading syllabus/year tokens such as
+  `2025/10` and lesson codes such as `E.1.11`, allowing spaces, hyphens, en dashes
+  or colons between them. Year/month tokens may have a trailing letter.
+  A leading year and FlightLogger marker before the lesson code are also
+  hidden. Intervening booking details (which can contain a student name) move to
+  the participant line and are retained alongside structured participants; their
+  role is not guessed. Similar text later in a title is preserved. Explicit
+  Student/Instructor/Customer/Pilot/Participant text
   and ATTENDEE display names are included where available. Unstructured names can
   remain embedded in the activity; the feed is not a structured personnel API.
-- Only explicit STATUS:CONFIRMED is labelled Confirmed. Absent/unknown status is
-  visibly unknown; TENTATIVE is labelled. CANCELLED occurrences are excluded and
+- Only explicit STATUS:CONFIRMED is labelled Confirmed with a small green marker.
+  Explicit TENTATIVE is labelled; absent/unknown status is left unlabelled, never
+  inferred as confirmed (the data model still retains UNKNOWN). CANCELLED
+  occurrences are excluded and
   counted, including overridden recurring instances.
 - All-day reminders are separate. Date-only DTSTART=DTEND is normalized to one day,
   as required by the inspected export's expiry reminders; timed nonpositive or
@@ -198,3 +218,12 @@ for rollback; no runtime configuration or release package is shipped in Git.
 Keep private source/cache data and real agenda PNGs out of Git and reports. Future
 service changes still require operational approval; never clear resource protection
 or display uncertainty simply because a cached page rendered successfully.
+
+The later `flight-duties-titles-5b79fecf6c69` release includes the six-color
+readability improvements and UI-only title cleanup. A physical B → D test confirmed
+clean activity titles, preserved student names on the participant line and no text
+overlap. The Flight Duties attempt generated in 2.6 s and completed in 31.5 s,
+including 28.6 s of physical display work. Service cgroup peak memory was 96.4 MiB;
+sampled swap peaked at 15.7 MiB, with no memory-limit/OOM events or unexpected
+restarts. Scheduling, saved settings, private source/cache data and resource limits
+were preserved. Earlier releases and their drop-ins remain available for rollback.
