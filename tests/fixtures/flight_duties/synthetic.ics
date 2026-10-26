@@ -1,0 +1,80 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//PiFrame//SYNTHETIC TEST DATA - NOT CURRENT BOOKINGS//EN
+X-WR-TIMEZONE:Europe/Zurich
+BEGIN:VEVENT
+UID:synthetic-early@example.invalid
+DTSTAMP:20261026T060000Z
+DTSTART;TZID=Europe/Zurich:20261026T073000
+DTEND;TZID=Europe/Zurich:20261026T083000
+SUMMARY:Training flight\, circuits
+LOCATION:HB-AAA
+DESCRIPTION:Student: Alex Example\nInstructor: Taylor Demo
+END:VEVENT
+BEGIN:VEVENT
+UID:synthetic-second@example.invalid
+DTSTAMP:20261026T060000Z
+DTSTART:20261026T080000Z
+DTEND:20261026T093000Z
+SUMMARY:Navigation exercise\; cross-country
+LOCATION:HB-BBB
+DESCRIPTION:Student: Jamie Sample\nInstructor: Taylor Demo
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+UID:synthetic-third@example.invalid
+DTSTART;TZID=Europe/Zurich:20261026T110000
+DTEND;TZID=Europe/Zurich:20261026T123000
+SUMMARY:Solo navigation with a long activity name for
+  deterministic folded-line layout testing
+LOCATION:HB-CCC
+DESCRIPTION:Student: Casey Fiction
+END:VEVENT
+BEGIN:VEVENT
+UID:synthetic-fourth@example.invalid
+DTSTART;TZID=Europe/Zurich:20261026T130000
+DTEND;TZID=Europe/Zurich:20261026T140000
+SUMMARY:Simulator instrument procedures
+LOCATION:SIM-01
+ATTENDEE;CN=Alex Example:mailto:fake@example.invalid
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:synthetic-fifth@example.invalid
+DTSTART;TZID=Europe/Zurich:20261026T143000
+DTEND;TZID=Europe/Zurich:20261026T153000
+SUMMARY:Training flight - general handling
+LOCATION:HB-AAA
+DESCRIPTION:Customer: Morgan Imaginary
+END:VEVENT
+BEGIN:VEVENT
+UID:synthetic-sixth@example.invalid
+DTSTART;TZID=Europe/Zurich:20261026T160000
+DTEND;TZID=Europe/Zurich:20261026T170000
+SUMMARY:Ground briefing and route planning
+LOCATION:Classroom A
+DESCRIPTION:Student: Alex Example
+END:VEVENT
+BEGIN:VEVENT
+UID:synthetic-seventh@example.invalid
+DTSTART;TZID=Europe/Zurich:20261026T173000
+DTEND;TZID=Europe/Zurich:20261026T183000
+SUMMARY:Night-flight briefing
+LOCATION:Briefing room
+DESCRIPTION:Instructor: Taylor Demo
+END:VEVENT
+BEGIN:VEVENT
+UID:synthetic-cancelled@example.invalid
+DTSTART;TZID=Europe/Zurich:20261026T100000
+DTEND;TZID=Europe/Zurich:20261026T103000
+SUMMARY:Cancelled fake booking
+LOCATION:HB-ZZZ
+STATUS:CANCELLED
+END:VEVENT
+BEGIN:VEVENT
+UID:synthetic-reminder@example.invalid
+DTSTART;VALUE=DATE:20261026
+DTEND;VALUE=DATE:20261026
+SUMMARY:SYNTHETIC certificate renewal reminder
+END:VEVENT
+END:VCALENDAR

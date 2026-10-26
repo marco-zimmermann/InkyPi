@@ -1,0 +1,23 @@
+<div class="form-group">
+    <label for="title" class="form-label">Dashboard title:</label>
+    <input id="title" name="title" class="form-input" value="Flight Duties" maxlength="80">
+</div>
+<div class="form-group">
+    <label for="max_bookings" class="form-label">Visible bookings:</label>
+    <select id="max_bookings" name="max_bookings" class="form-input">
+        <option value="4">4</option><option value="5" selected>5</option><option value="6">6</option>
+        <option value="7">Legacy 7 (shown as 6)</option>
+    </select>
+    <small>Europe/Zurich: today before 18:00, tomorrow from 18:00. Includes the featured duty; reminders are separate.</small>
+</div>
+<p>Configure FLIGHTLOGGER_ICAL_URL as an environment secret, or set
+FLIGHTLOGGER_ICAL_URL_FILE to a private file containing the subscription URL.
+Do not paste the URL into dashboard settings. Participant text can be visible on the display.</p>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof pluginSettings !== 'undefined') {
+        document.getElementById('title').value = pluginSettings.title || 'Flight Duties';
+        document.getElementById('max_bookings').value = String(pluginSettings.max_bookings || 5);
+    }
+});
+</script>

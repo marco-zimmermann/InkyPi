@@ -171,7 +171,7 @@ class RefreshTask:
                     data_status=image.info.get("inkypi_data_status",
                                                "live" if action.get_plugin_id() == "weather" else None),
                     live_data=(image.info.get("inkypi_live_data_success") is True
-                               if action.get_plugin_id() == "metar"
+                               if action.get_plugin_id() in ("metar", "flight_duties")
                                else action.get_plugin_id() == "weather"))
             except BaseException as exc:
                 fatal = not isinstance(exc, Exception)

@@ -22,6 +22,7 @@ InkyPi is an open-source, customizable E-Ink display powered by a Raspberry Pi. 
 - AI Image/Text: Generate images and dynamic text from prompts using OpenAI's models
 - Weather: Display current weather conditions and multi-day forecasts with a customizable layout
 - Calendar: Visualize your calendar from Google, Outlook, or Apple Calendar with customizable layouts
+- [Daily Flight Duties](docs/FLIGHT_DUTIES.md): Private FlightLogger iCalendar agenda with a Pillow dashboard and stale-cache indicators
 
 And additional plugins coming soon! For documentation on building custom plugins, see [Building InkyPi Plugins](./docs/building_plugins.md).
 

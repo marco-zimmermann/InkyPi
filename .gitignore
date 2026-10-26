@@ -193,3 +193,7 @@ venv-*/
 !/src/static/images/plugins/.gitignore
 /src/static/images/saved/*
 !/src/static/images/saved/.gitignore
+
+# Private Flight Duties snapshots/secrets (never serve from static assets)
+.flight-duties-cache/
+flightlogger-calendar-url

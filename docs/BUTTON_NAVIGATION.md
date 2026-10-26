@@ -608,7 +608,7 @@ into independent paths; compare live state before activation and stop if it chan
 Carry selected/displaced state forward without queuing input. Keep manual-only true,
 startup false, the intended validated assignments, and playlists paused for controlled
 integration tests. The deployed Phase 2 configuration assigns A/B to remembered
-Weather/METAR locations, C to contextual cycling and D unassigned. Production
+Weather/METAR locations, C to contextual cycling and D to Flight Duties. Production
 automatic enablement requires a separate deliberate operation after validation.
 
 Use the existing virtual environment and a systemd drop-in overriding only
@@ -618,7 +618,8 @@ ExecStart/WorkingDirectory. A persistent drop-in under
 environment and writable paths into the new release. Verify the unit, limits, privileged process cwd, and isolated
 configuration. Stop the old service and confirm complete process/GPIO release
 before starting another. On failure, stop the candidate and restore the previous
-drop-in and release without copying new state into the rollback configuration.
+drop-in and release. Review any newer successful display and uncertainty state
+before using older runtime metadata; do not blindly copy or certify stale state.
 The original production checkout, boot configuration, dependencies, and boot-enable
 state remain unchanged. A `/run` drop-in disappears at reboot.
 
@@ -632,3 +633,13 @@ Generated configuration, images, release archives, deployment scripts, and measu
 logs are runtime artifacts; they are not part of this source commit. Further button
 assignments, scheduling changes, deployments, and physical tests require their own
 scope and validation.
+
+### Flight Duties scheduling
+
+The opt-in `flight_duties` group supports `interval_seconds` (default 900) and
+`auto_refresh_enabled` (default false) through the same selected-screen scheduler.
+Button D remains a static saved-instance assignment. Calendar scheduling does not
+add another location cycle or change Weather/METAR memories. Cached/unavailable
+pages record presentation success separately from live retrieval. See
+[Flight Duties](FLIGHT_DUTIES.md#selected-screen-automatic-refresh) for configuration,
+Zurich midnight/DST behavior and private-cache handling.

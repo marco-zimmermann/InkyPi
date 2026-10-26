@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 class ScreenSelectionController:
     BUTTONS = ("A", "B", "C", "D")
     LOCATION_PLUGINS = ("weather", "metar")
+    SCHEDULED_PLUGINS = LOCATION_PLUGINS + ("flight_duties",)
 
     def __init__(self, device_config, wake, *, monotonic=None, utcnow=None):
         self.device_config = device_config
@@ -43,7 +44,7 @@ class ScreenSelectionController:
         self._startup_until = self._started_mono + grace
         self._completion_mono = {}
         self._scheduler_failed = False
-        self._interrupted_plugins = [plugin for plugin in self.LOCATION_PLUGINS
+        self._interrupted_plugins = [plugin for plugin in self.SCHEDULED_PLUGINS
                                      if self._timing(self._settings(), plugin).get("outcome") == "running"]
 
     @staticmethod
@@ -57,7 +58,7 @@ class ScreenSelectionController:
     def _interval(self, settings, plugin_id):
         groups = settings.get("groups", {})
         group = groups.get(plugin_id) if isinstance(groups, dict) else None
-        if plugin_id not in self.LOCATION_PLUGINS or not isinstance(group, dict):
+        if plugin_id not in self.SCHEDULED_PLUGINS or not isinstance(group, dict):
             return None
         interval = group.get("interval_seconds", 900)
         return interval if self._seconds(interval) else None
